@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Student Management System</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f5f6fa;--card:#fff;--text:#1d2433;--muted:#6b7385;--line:#e3e6ee;--pri:#3b5bdb;--pri-t:#fff;--danger:#d6336c;--ok:#2b8a3e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151c;--card:#1b2029;--text:#e8ebf2;--muted:#9aa3b5;--line:#2a3140;--pri:#748ffc;--pri-t:#101426;--danger:#f783ac;--ok:#69db7c}}
+:root[data-theme="dark"]{--bg:#12151c;--card:#1b2029;--text:#e8ebf2;--muted:#9aa3b5;--line:#2a3140;--pri:#748ffc;--pri-t:#101426;--danger:#f783ac;--ok:#69db7c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+.wrap{max-width:1000px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+h1{font-size:1.4rem;margin:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.stat,.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stat b{display:block;font-size:1.5rem}.stat span{color:var(--muted);font-size:.85rem}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+input,select,button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+input:focus,select:focus{outline:2px solid var(--pri)}
+.bar input{flex:1;min-width:160px}
+button{cursor:pointer}
+.pri{background:var(--pri);color:var(--pri-t);border-color:var(--pri);font-weight:600}
+.del{color:var(--danger)}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:620px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);font-size:.92rem}
+th{color:var(--muted);font-weight:600;cursor:pointer;user-select:none}
+td button{padding:4px 8px;font-size:.8rem;margin-right:4px}
+.badge{padding:2px 8px;border-radius:99px;font-size:.78rem;background:var(--line)}
+.empty{text-align:center;color:var(--muted);padding:24px}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--text);width:min(420px,92vw);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+label{display:block;font-size:.85rem;color:var(--muted);margin-top:10px}
+dialog input,dialog select{width:100%;margin-top:4px}
+.row{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.err{color:var(--danger);font-size:.82rem;min-height:1em;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>🎓 Student Management System</h1><button class="pri" id="add">+ Add Student</button></header>
+<div class="stats">
+<div class="stat"><b id="sTotal">0</b><span>Total students</span></div>
+<div class="stat"><b id="sGpa">0</b><span>Average grade (%)</span></div>
+<div class="stat"><b id="sTop">–</b><span>Top performer</span></div>
+<div class="stat"><b id="sCourses">0</b><span>Courses</span></div>
+</div>
+<div class="panel">
+<div class="bar">
+<input id="q" placeholder="Search by name, email or roll no…">
+<select id="fc"><option value="">All courses</option></select>
+</div>
+<div class="tbl"><table>
+<thead><tr><th data-k="roll">Roll</th><th data-k="name">Name</th><th data-k="course">Course</th><th data-k="year">Year</th><th data-k="grade">Grade %</th><th>Actions</th></tr></thead>
+<tbody id="rows"></tbody></table></div>
+<div class="empty" id="empty" hidden>No students found.</div>
+</div>
+</div>
+
+<dialog id="dlg"><h2 id="dt" style="margin:0 0 4px;font-size:1.15rem">Add Student</h2>
+<label>Roll No<input id="fRoll"></label>
+<label>Full name<input id="fName"></label>
+<label>Email<input id="fEmail" type="email"></label>
+<label>Course<select id="fCourse"><option>Computer Science</option><option>Mechanical</option><option>Electronics</option><option>Civil</option><option>Business</option></select></label>
+<label>Year<select id="fYear"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+<label>Grade (%)<input id="fGrade" type="number" min="0" max="100"></label>
+<div class="err" id="err"></div>
+<div class="row"><button id="cancel">Cancel</button><button class="pri" id="save">Save</button></div>
+</dialog>
+
+<script>
+const KEY="sms_students_v1";
+let students=[],editId=null,sort={k:"roll",dir:1};
+const $=id=>document.getElementById(id);
+const seed=[
+{id:1,roll:"CS101",name:"Aarav Sharma",email:"aarav@college.edu",course:"Computer Science",year:2,grade:88},
+{id:2,roll:"EC102",name:"Priya Nair",email:"priya@college.edu",course:"Electronics",year:3,grade:92},
+{id:3,roll:"ME103",name:"Rohan Patil",email:"rohan@college.edu",course:"Mechanical",year:1,grade:74},
+{id:4,roll:"BU104",name:"Sneha Kulkarni",email:"sneha@college.edu",course:"Business",year:4,grade:81}];
+function load(){try{const d=localStorage.getItem(KEY);students=d?JSON.parse(d):seed.slice()}catch(e){students=seed.slice()}}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(students))}catch(e){}}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function render(){
+ const q=$("q").value.toLowerCase(),fc=$("fc").value;
+ const courses=[...new Set(students.map(s=>s.course))];
+ $("fc").innerHTML='<option value="">All courses</option>'+courses.map(c=>`<option${c===fc?" selected":""}>${esc(c)}</option>`).join("");
+ let list=students.filter(s=>(!fc||s.course===fc)&&(s.name+s.email+s.roll).toLowerCase().includes(q));
+ list.sort((a,b)=>(a[sort.k]>b[sort.k]?1:a[sort.k]<b[sort.k]?-1:0)*sort.dir);
+ $("rows").innerHTML=list.map(s=>`<tr><td>${esc(s.roll)}</td><td>${esc(s.name)}<div style="color:var(--muted);font-size:.8rem">${esc(s.email)}</div></td><td><span class="badge">${esc(s.course)}</span></td><td>${s.year}</td><td>${s.grade}</td><td><button onclick="edit(${s.id})">Edit</button><button class="del" onclick="removeS(${s.id})">Delete</button></td></tr>`).join("");
+ $("empty").hidden=list.length>0;
+ $("sTotal").textContent=students.length;
+ $("sGpa").textContent=students.length?(students.reduce((a,s)=>a+s.grade,0)/students.length).toFixed(1):0;
+ const top=students.slice().sort((a,b)=>b.grade-a.grade)[0];
+ $("sTop").textContent=top?top.name.split(" ")[0]:"–";
+ $("sCourses").textContent=courses.length;
+}
+function openForm(s){
+ editId=s?s.id:null;$("dt").textContent=s?"Edit Student":"Add Student";$("err").textContent="";
+ $("fRoll").value=s?s.roll:"";$("fName").value=s?s.name:"";$("fEmail").value=s?s.email:"";
+ $("fCourse").value=s?s.course:"Computer Science";$("fYear").value=s?s.year:"1";$("fGrade").value=s?s.grade:"";
+ $("dlg").showModal();
+}
+window.edit=id=>openForm(students.find(s=>s.id===id));
+window.removeS=id=>{if(confirm("Delete this student?")){students=students.filter(s=>s.id!==id);persist();render()}};
+$("add").onclick=()=>openForm(null);
+$("cancel").onclick=()=>$("dlg").close();
+$("save").onclick=()=>{
+ const o={roll:$("fRoll").value.trim(),name:$("fName").value.trim(),email:$("fEmail").value.trim(),course:$("fCourse").value,year:+$("fYear").value,grade:parseFloat($("fGrade").value)};
+ if(!o.roll||!o.name)return $("err").textContent="Roll no and name are required.";
+ if(!/^\S+@\S+\.\S+$/.test(o.email))return $("err").textContent="Enter a valid email.";
+ if(isNaN(o.grade)||o.grade<0||o.grade>100)return $("err").textContent="Grade must be 0–100.";
+ if(students.some(s=>s.roll.toLowerCase()===o.roll.toLowerCase()&&s.id!==editId))return $("err").textContent="Roll no already exists.";
+ if(editId){Object.assign(students.find(s=>s.id===editId),o)}
+ else{students.push({id:Date.now(),...o})}
+ persist();$("dlg").close();render();
+};
+$("q").oninput=render;$("fc").onchange=render;
+document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;sort=sort.k===k?{k,dir:-sort.dir}:{k,dir:1};render()});
+load();render();
+</script>
+</body>
+</html>
